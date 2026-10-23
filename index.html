@@ -157,6 +157,22 @@ button.avatar:hover::after,button.avatar:focus-visible::after{opacity:1}
 .picker-grid button:hover{border-color:var(--accent)}
 .picker-grid button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
 .list-picker{margin:12px 0 0}
+.fold{width:32px;height:32px;border-radius:50%;border:2px solid var(--line);background:var(--surface);cursor:pointer;flex:none;display:grid;place-items:center;padding:0;color:var(--muted)}
+.fold::before{content:"";width:8px;height:8px;border:solid currentColor;border-width:0 2.5px 2.5px 0;transform:translateY(-2px) rotate(45deg);transition:transform .2s}
+.tag.collapsed .fold::before{transform:translateX(-1px) rotate(-45deg)}
+.fold:hover{color:var(--accent);border-color:var(--accent)}
+.tag.collapsed>:not(.tag-head){display:none!important}
+.tag.collapsed .tag-head{border-bottom:0}
+.tag-head .cnt{font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap}
+.tag:not(.collapsed) .tag-head .cnt{display:none}
+.tag.collapsed .tag-head .sum,.tag.collapsed .tag-head .icon{display:none}
+.tag.collapsed .tag-head{cursor:pointer}
+.pbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pchips{display:flex;gap:6px;overflow-x:auto;flex:1 1 auto;min-width:0;padding:2px 2px 6px;scrollbar-width:thin}
+.pchip{flex:none;display:inline-flex;align-items:center;gap:6px;border:2px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px 4px 4px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+.pchip:first-child{padding-left:12px}
+.pchip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.pfold{flex:none;border:0;background:none;color:var(--accent);font-weight:800;font-size:13px;cursor:pointer;padding:6px 4px}
 .backup{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;border:2px dashed var(--line);border-radius:22px;padding:14px 16px;margin-top:8px}
 .backup strong{font-family:var(--display);font-weight:600;font-size:16px}
 .backup .tip{margin:2px 0 0;max-width:46ch}
@@ -524,6 +540,7 @@ body.k-ideas .no-ideas{display:none!important}
   function scheduleSave(){
     const l = lists[currentId]; if (!l) return;
     if (!$('#sharePanel').hidden) buildShare();
+    try { renderBudget(); } catch {}
     $('#status').textContent = 'Modifications…';
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => flush(l.id), 600);
@@ -659,7 +676,9 @@ body.k-ideas .no-ideas{display:none!important}
       e.innerHTML = lk ? '<p class="big">Cette liste était vide</p>' : '<div style="font-size:30px">🎁</div><p class="big">Pour qui sont les cadeaux ?</p><p style="margin:0">Ajoute quelqu’un, puis note tes idées avec le lien et le prix.</p>';
       wrap.appendChild(e);
     }
-    l.people.forEach(p => wrap.appendChild(personCard(p, lk)));
+    const focus = focusOf[l.id] && l.people.some(x => x.id === focusOf[l.id]) ? focusOf[l.id] : null;
+    if (l.people.length >= 2) wrap.appendChild(peopleBar(l, focus));
+    l.people.forEach(p => { if (!focus || p.id === focus) wrap.appendChild(personCard(p, lk)); });
     renderBudget();
     if (!$('#sharePanel').hidden) buildShare();
   }
@@ -686,7 +705,13 @@ body.k-ideas .no-ideas{display:none!important}
     else if (b === 0 && t.planned > 0 && !locked()) { al.hidden = false; al.textContent = 'Indique ton budget pour voir ce qu’il te reste 💰'; }
     else if (t.count > 0 && t.done === t.count) { al.hidden = false; al.classList.add('ok'); al.textContent = locked() ? 'Tous les cadeaux avaient été achetés 🎉' : 'Tous les cadeaux sont achetés 🎉 Il ne reste plus qu’à emballer !'; }
     else al.hidden = true;
-    l.people.forEach(p => { const el = document.querySelector('[data-sum="'+p.id+'"]'); if (el) el.textContent = eur((p.gifts||[]).reduce((s,g)=>s+((g.takenBy||'').trim() ? 0 : (Number(g.price)||0)),0)); });
+    l.people.forEach(p => {
+      const tot = (p.gifts||[]).reduce((s,g)=>s+((g.takenBy||'').trim() ? 0 : (Number(g.price)||0)),0);
+      const el = document.querySelector('[data-sum="'+p.id+'"]'); if (el) el.textContent = eur(tot);
+      const n = (p.gifts||[]).filter(g => (g.title||'').trim()).length;
+      const c = document.querySelector('[data-cnt="'+p.id+'"]'); if (c) c.textContent = n + (n > 1 ? ' idées' : ' idée') + (tot ? ' · ' + eur(tot) : '');
+    });
+    refreshBar();
   }
 
   function safeUrl(u){ if (!u) return null; try { const x = new URL(/^https?:\/\//i.test(u) ? u : 'https://' + u); return /^https?:$/.test(x.protocol) ? x.href : null; } catch { return null; } }
@@ -709,9 +734,17 @@ body.k-ideas .no-ideas{display:none!important}
     if (!lk) av.onclick = () => togglePicker(tag, head, { icon: p.icon, color: personColor(p) }, ch => { if ('icon' in ch) p.icon = ch.icon; if ('color' in ch) p.color = ch.color; paintAv(); scheduleSave(); }, 'Icône et couleur de ' + ((p.name||'').trim() || 'cette personne'), true);
     paintAv();
     const name = document.createElement('input'); name.className = 'name'; name.type = 'text'; name.placeholder = 'Pour qui ?'; name.value = p.name || ''; name.id = 'n-' + p.id; name.setAttribute('aria-label','Prénom'); name.disabled = lk;
-    name.oninput = () => { p.name = name.value; paintAv(); scheduleSave(); };
+    name.oninput = () => { p.name = name.value; paintAv(); scheduleSave(); refreshBar(); };
     const sum = document.createElement('span'); sum.className = 'sum num'; sum.dataset.sum = p.id;
-    head.append(av, name, sum);
+    const cnt = document.createElement('span'); cnt.className = 'cnt'; cnt.dataset.cnt = p.id;
+    const nIdeas = p.gifts.filter(g => (g.title||'').trim()).length;
+    cnt.textContent = nIdeas + (nIdeas > 1 ? ' idées' : ' idée');
+    const fold = document.createElement('button'); fold.type = 'button'; fold.className = 'fold'; fold.id = 'fold-' + p.id;
+    const setFold = c => { tag.classList.toggle('collapsed', c); fold.setAttribute('aria-expanded', String(!c)); fold.setAttribute('aria-label', c ? 'Afficher les idées' : 'Replier les idées'); fold.title = c ? 'Afficher' : 'Replier'; };
+    setFold(isCollapsed(p.id));
+    fold.onclick = () => { const c = !tag.classList.contains('collapsed'); setCollapsed(p.id, c); setFold(c); };
+    head.append(fold, av, name, cnt, sum);
+    head.addEventListener('click', e => { if (tag.classList.contains('collapsed') && !e.target.closest('button,input')) fold.click(); });
     if (!lk) {
       const del = document.createElement('button'); del.type = 'button'; del.className = 'icon'; del.textContent = '✕'; del.title = 'Retirer cette personne'; del.setAttribute('aria-label','Retirer cette personne');
       let armed = false;
@@ -847,6 +880,38 @@ body.k-ideas .no-ideas{display:none!important}
     const taken = row.querySelector(':scope > .taken');
     if (taken) row.insertBefore(bar, taken); else row.appendChild(bar);
   }
+  // ---------- Replier les personnes / n'en afficher qu'une
+  const focusOf = {};
+  let collapsedSet = new Set(); try { collapsedSet = new Set(JSON.parse(pref.get('collapsed') || '[]')); } catch {}
+  const isCollapsed = id => collapsedSet.has(id);
+  const setCollapsed = (id, c) => { if (c) collapsedSet.add(id); else collapsedSet.delete(id); pref.set('collapsed', JSON.stringify([...collapsedSet])); };
+  function refreshBar(){
+    const old = document.querySelector('#people > .pbar'); const l = cur(); if (!old || !l) return;
+    const focus = focusOf[l.id] && l.people.some(x => x.id === focusOf[l.id]) ? focusOf[l.id] : null;
+    const sx = old.querySelector('.pchips')?.scrollLeft || 0;
+    const nb = peopleBar(l, focus); old.replaceWith(nb); const pc = nb.querySelector('.pchips'); if (pc) pc.scrollLeft = sx;
+  }
+  function peopleBar(l, focus){
+    const bar = document.createElement('div'); bar.className = 'pbar'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Choisir une personne');
+    const chips = document.createElement('div'); chips.className = 'pchips';
+    const mk = (label, active, onClick, person) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'pchip'; b.setAttribute('aria-pressed', String(active));
+      if (person) b.appendChild(bubbleFor(person));
+      b.appendChild(document.createTextNode(label)); b.onclick = onClick; chips.appendChild(b);
+    };
+    mk('Tous (' + l.people.length + ')', !focus, () => { delete focusOf[l.id]; renderList(); });
+    l.people.forEach(x => { const n = (x.gifts||[]).filter(g => (g.title||'').trim()).length;
+      mk(((x.name||'').trim() || 'Sans prénom') + ' · ' + n, focus === x.id, () => { focusOf[l.id] = x.id; setCollapsed(x.id, false); renderList(); window.scrollTo({ top: bar.getBoundingClientRect().top + window.scrollY - 12, behavior: 'smooth' }); }, x); });
+    bar.appendChild(chips);
+    if (!focus) {
+      const allC = l.people.every(x => isCollapsed(x.id));
+      const t = document.createElement('button'); t.type = 'button'; t.className = 'pfold'; t.textContent = allC ? 'Tout déplier' : 'Tout replier';
+      t.onclick = () => { l.people.forEach(x => setCollapsed(x.id, !allC)); renderList(); };
+      bar.appendChild(t);
+    }
+    return bar;
+  }
+
   // ---------- Boîte à idées : suggestions et bascule
   const BOX = 'ideas-box';
   const norm = t => String(t || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -1167,7 +1232,7 @@ body.k-ideas .no-ideas{display:none!important}
     cur().date = v; scheduleSave(); renderAll();
   });
   $('#budget').addEventListener('input', e => { if (locked()) return; cur().budget = Number(e.target.value) || 0; renderBudget(); scheduleSave(); });
-  $('#addPerson').onclick = () => { if (locked()) return; const p = { id: uid(), name: '', gifts: [] }; cur().people.push(p); renderList(); document.getElementById('n-' + p.id).focus(); scheduleSave(); };
+  $('#addPerson').onclick = () => { if (locked()) return; const p = { id: uid(), name: '', gifts: [] }; cur().people.push(p); delete focusOf[cur().id]; renderList(); document.getElementById('n-' + p.id).focus(); scheduleSave(); };
 
   // Supprimer la liste : confirmation, puis 8 s pour annuler avant la vraie suppression
   let delArmed = false;
