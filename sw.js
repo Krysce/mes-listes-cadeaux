@@ -1,5 +1,5 @@
 /* Service worker : l'app s'ouvre même sans connexion. */
-const CACHE = 'ribbon-v3';
+const CACHE = 'ribbon-v4';
 const SHELL = [
   './',
   './index.html',

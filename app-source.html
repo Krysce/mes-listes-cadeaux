@@ -137,6 +137,9 @@ button.avatar:hover::after,button.avatar:focus-visible::after{opacity:1}
 .picker-grid button:hover{border-color:var(--accent)}
 .picker-grid button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
 .list-picker{margin:12px 0 0}
+.sh-people{display:flex;flex-direction:column;gap:6px}
+.sh-people .tip{margin:0}
+.sh-people .toggle .bub{width:22px;height:22px;font-size:12px}
 .fold{width:32px;height:32px;border-radius:50%;border:2px solid var(--line);background:var(--surface);cursor:pointer;flex:none;display:grid;place-items:center;padding:0;color:var(--muted)}
 .fold::before{content:"";width:8px;height:8px;border:solid currentColor;border-width:0 2.5px 2.5px 0;transform:translateY(-2px) rotate(45deg);transition:transform .2s}
 .tag.collapsed .fold::before{transform:translateX(-1px) rotate(-45deg)}
@@ -413,6 +416,11 @@ body.k-ideas .no-ideas{display:none!important}
         <label class="toggle"><input type="checkbox" id="shTaken" checked> Qui offre quoi</label>
         <label class="toggle"><input type="checkbox" id="shBudget"> Mon budget</label>
       </div>
+      <div class="sh-people">
+        <span class="lbl">Personnes à inclure</span>
+        <p class="tip">Décoche la personne à qui tu envoies la liste : elle ne verra pas ce que tu lui prépares.</p>
+        <div class="toggles" id="shPeople"></div>
+      </div>
       <label for="shText" class="sr">Texte à partager</label>
       <textarea id="shText" readonly></textarea>
       <div class="share-actions">
@@ -659,7 +667,7 @@ body.k-ideas .no-ideas{display:none!important}
     if (l.people.length >= 2) wrap.appendChild(peopleBar(l, focus));
     l.people.forEach(p => { if (!focus || p.id === focus) wrap.appendChild(personCard(p, lk)); });
     renderBudget();
-    if (!$('#sharePanel').hidden) buildShare();
+    if (!$('#sharePanel').hidden) { renderSharePeople(); buildShare(); }
   }
 
   function totals(l){
@@ -1242,7 +1250,9 @@ body.k-ideas .no-ideas{display:none!important}
     const lines = [KINDS[l.kind].emoji + ' ' + (l.title || 'Ma liste')];
     if (l.date) { const [y,m,d] = l.date.split('-').map(Number); lines.push('📅 ' + new Date(y,m-1,d).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})); }
     if (showBud && l.budget) lines.push('💰 Budget : ' + eur(Number(l.budget)));
+    const ex = excludedFor(l);
     l.people.forEach(p => {
+      if (ex.has(p.id)) return;
       const gifts = (p.gifts||[]).filter(g => (g.title||'').trim());
       if (!gifts.length && !(p.name||'').trim()) return;
       lines.push('', '👤 ' + ((p.name||'').trim() || 'Sans prénom'));
@@ -1258,7 +1268,22 @@ body.k-ideas .no-ideas{display:none!important}
     });
     $('#shText').value = lines.join('\n');
   }
-  $('#shareBtn').onclick = () => { const p = $('#sharePanel'); p.hidden = !p.hidden; if (!p.hidden) { buildShare(); $('#shStatus').textContent = ''; } };
+  const excludeOf = {};
+  function excludedFor(l){ return excludeOf[l.id] || (excludeOf[l.id] = new Set()); }
+  function renderSharePeople(){
+    const l = cur(); const box = $('#shPeople'); box.innerHTML = '';
+    const ex = excludedFor(l);
+    const people = l.people.filter(p => (p.name||'').trim() || (p.gifts||[]).some(g => (g.title||'').trim()));
+    $('.sh-people').hidden = people.length < 2;
+    people.forEach(p => {
+      const lab = document.createElement('label'); lab.className = 'toggle';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'shp-' + p.id; cb.checked = !ex.has(p.id);
+      cb.onchange = () => { if (cb.checked) ex.delete(p.id); else ex.add(p.id); buildShare(); };
+      lab.append(cb, bubbleFor(p), document.createTextNode((p.name||'').trim() || 'Sans prénom'));
+      box.appendChild(lab);
+    });
+  }
+  $('#shareBtn').onclick = () => { const p = $('#sharePanel'); p.hidden = !p.hidden; if (!p.hidden) { renderSharePeople(); buildShare(); $('#shStatus').textContent = ''; } };
   $('#shClose').onclick = () => { $('#sharePanel').hidden = true; };
   ['#shPrices','#shLinks','#shBought','#shBudget','#shTaken'].forEach(s => $(s).onchange = buildShare);
   $('#shCopy').onclick = () => {
@@ -1333,7 +1358,9 @@ body.k-ideas .no-ideas{display:none!important}
     const IMG = 24, PAD = 7, CW = W - 2 * M, TX = M + PAD + IMG + 6;
     const priceW = showP ? 26 : 0;
     const people = [];
+    const exP = o ? new Set() : excludedFor(l);
     for (const p of l.people) {
+      if (exP.has(p.id)) continue;
       const gifts = (p.gifts || []).filter(g => (g.title || '').trim());
       if (!gifts.length && !(p.name || '').trim()) continue;
       const rows = [];
