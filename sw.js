@@ -1,5 +1,5 @@
 /* Service worker : l'app s'ouvre même sans connexion. */
-const CACHE = 'mes-listes-cadeaux-v1';
+const CACHE = 'ribbon-v2';
 const SHELL = [
   './',
   './index.html',

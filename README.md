@@ -1,4 +1,6 @@
-# 🎁 Mes listes cadeaux
+# 🎀 Ribbon
+
+*Mes listes cadeaux*
 
 Une petite app pour préparer ses cadeaux de Noël, d'anniversaires et d'événements, avec un budget, des photos, des liens et un PDF à envoyer à la famille.
 

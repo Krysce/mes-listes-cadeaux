@@ -7,7 +7,7 @@ from pathlib import Path
 
 here = Path(__file__).parent
 src = (here / "app-source.html").read_text(encoding="utf-8")
-src = src.replace('<meta name="claude:viewport-fit-sides" content="cover">\n', "")
+src = src.replace('<meta name="claude:viewport-fit-sides" content="cover">\n', "").replace("<title>Mes listes cadeaux</title>", "<title>Ribbon</title>", 1)
 
 head = """<!doctype html>
 <html lang="fr">
@@ -19,7 +19,7 @@ head = """<!doctype html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Cadeaux">
+<meta name="apple-mobile-web-app-title" content="Ribbon">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/favicon-64.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
